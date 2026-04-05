@@ -40,11 +40,10 @@
   <div class="container">
     <h1>My To-Do List</h1>
 
-    <!-- AUTH SECTION -->
     <div id="authSection">
       <div id="loginForm">
         <div class="form-group">
-          <input type="email" id="loginEmail" placeholder="Email..." />
+          <input type="text" id="loginEmail" placeholder="Username..." />
         </div>
         <div class="form-group">
           <input type="password" id="loginPassword" placeholder="Password..." />
@@ -55,26 +54,16 @@
       </div>
 
       <div id="signupForm" style="display:none;">
-        <div class="form-group">
-          <input type="text" id="signupName" placeholder="Full name..." />
-        </div>
-        <div class="form-group">
-          <input type="email" id="signupEmail" placeholder="Email..." />
-        </div>
-        <div class="form-group">
-          <input type="password" id="signupPassword" placeholder="Password (min 6 characters)..." />
-        </div>
-        <button class="primary-btn" onclick="signup()">Sign Up</button>
+        <p style="text-align:center; color:#666; font-size:14px; padding: 20px 0;">
+          To create an account, contact your administrator.
+        </p>
         <p class="auth-toggle" onclick="showLogin()">Already have an account? Login</p>
-        <p class="status-msg" id="signupMsg"></p>
       </div>
     </div>
 
-    <!-- TASKS SECTION -->
     <div id="tasksSection" style="display:none;">
       <p class="welcome" id="welcomeMsg"></p>
       <button class="logout-btn" onclick="logout()">Logout</button>
-
       <div class="form-group">
         <input type="text" id="titleInput" placeholder="Task title..." />
       </div>
@@ -83,9 +72,7 @@
       </div>
       <button class="primary-btn" onclick="createTask()">Add Task</button>
       <p class="status-msg" id="statusMsg"></p>
-
       <hr class="divider">
-
       <div class="task-list" id="taskList">
         <p class="empty-msg">Loading tasks...</p>
       </div>
@@ -94,10 +81,14 @@
 
   <script>
     const API = 'http://localhost:3000';
+    const KEYCLOAK_URL = 'http://localhost:8080';
+    const REALM = 'ToDo-app';
+    const CLIENT_ID = 'ToDo-frontend';
+    const CLIENT_SECRET = 'xizO7cZDcC1GnIqdfChje1KNsBpVXXwi';
+
     let token = localStorage.getItem('token');
     let userName = localStorage.getItem('userName');
 
-    // check if already logged in
     if (token) {
       showTasksSection();
       getTasks();
@@ -106,7 +97,7 @@
     function showTasksSection() {
       document.getElementById('authSection').style.display = 'none';
       document.getElementById('tasksSection').style.display = 'block';
-      document.getElementById('welcomeMsg').textContent = `Welcome back, ${userName}!`;
+      document.getElementById('welcomeMsg').textContent = 'Welcome back, ' + userName + '!';
     }
 
     function showSignup() {
@@ -128,79 +119,56 @@
       showLogin();
     }
 
-    async function signup() {
-      const name = document.getElementById('signupName').value.trim();
-      const email = document.getElementById('signupEmail').value.trim();
-      const password = document.getElementById('signupPassword').value.trim();
-
-      if (!name || !email || !password) {
-        showAuthMsg('Please fill all fields', 'red');
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API}/auth/signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password })
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          showAuthMsg(data.message, 'red');
-          return;
-        }
-
-        token = data.token;
-        userName = data.user.name;
-        localStorage.setItem('token', token);
-        localStorage.setItem('userName', userName);
-        showTasksSection();
-        getTasks();
-
-      } catch (error) {
-        showAuthMsg('Could not connect to server', 'red');
-      }
-    }
-
     async function login() {
-      const email = document.getElementById('loginEmail').value.trim();
+      const username = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value.trim();
 
-      if (!email || !password) {
+      if (!username || !password) {
         showAuthMsg('Please fill all fields', 'red');
         return;
       }
 
       try {
-        const res = await fetch(`${API}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
+        const res = await fetch(
+          KEYCLOAK_URL + '/realms/' + REALM + '/protocol/openid-connect/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'password',
+              client_id: CLIENT_ID,
+              client_secret: CLIENT_SECRET,
+              username: username,
+              password: password,
+            }),
+          }
+        );
+
         const data = await res.json();
 
         if (!res.ok) {
-          showAuthMsg(data.message, 'red');
+          showAuthMsg('Invalid username or password', 'red');
           return;
         }
 
-        token = data.token;
-        userName = data.user.name;
+        token = data.access_token;
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        userName = decoded.name || decoded.preferred_username;
+
         localStorage.setItem('token', token);
         localStorage.setItem('userName', userName);
         showTasksSection();
         getTasks();
 
       } catch (error) {
-        showAuthMsg('Could not connect to server', 'red');
+        showAuthMsg('Could not connect to Keycloak', 'red');
       }
     }
 
     async function getTasks() {
       try {
-        const res = await fetch(`${API}/tasks`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const res = await fetch(API + '/tasks', {
+          headers: { 'Authorization': 'Bearer ' + token }
         });
         const tasks = await res.json();
         const taskList = document.getElementById('taskList');
@@ -210,16 +178,15 @@
           return;
         }
 
-        taskList.innerHTML = tasks.map(task => `
-          <div class="task-card ${task.completed ? 'completed' : ''}">
-            <div class="task-title">${task.title}</div>
-            <div class="task-desc">${task.description || 'No description'}</div>
-            <div class="task-actions">
-              ${!task.completed ? `<button class="btn-complete" onclick="completeTask('${task._id}')">Mark Complete</button>` : ''}
-              <button class="btn-delete" onclick="deleteTask('${task._id}')">Delete</button>
-            </div>
-          </div>
-        `).join('');
+        taskList.innerHTML = tasks.map(function(task) {
+          return '<div class="task-card ' + (task.completed ? 'completed' : '') + '">' +
+            '<div class="task-title">' + task.title + '</div>' +
+            '<div class="task-desc">' + (task.description || 'No description') + '</div>' +
+            '<div class="task-actions">' +
+            (!task.completed ? '<button class="btn-complete" onclick="completeTask(\'' + task._id + '\')">Mark Complete</button>' : '') +
+            '<button class="btn-delete" onclick="deleteTask(\'' + task._id + '\')">Delete</button>' +
+            '</div></div>';
+        }).join('');
 
       } catch (error) {
         document.getElementById('taskList').innerHTML = '<p class="empty-msg">Could not load tasks.</p>';
@@ -230,16 +197,19 @@
       const title = document.getElementById('titleInput').value.trim();
       const description = document.getElementById('descInput').value.trim();
 
-      if (!title) { showStatus('Please enter a title', 'red'); return; }
+      if (!title) {
+        showStatus('Please enter a title', 'red');
+        return;
+      }
 
       try {
-        await fetch(`${API}/tasks`, {
+        await fetch(API + '/tasks', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ title, description })
+          body: JSON.stringify({ title: title, description: description })
         });
         document.getElementById('titleInput').value = '';
         document.getElementById('descInput').value = '';
@@ -252,11 +222,11 @@
 
     async function completeTask(id) {
       try {
-        await fetch(`${API}/tasks/${id}`, {
+        await fetch(API + '/tasks/' + id, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': 'Bearer ' + token
           },
           body: JSON.stringify({ completed: true })
         });
@@ -268,9 +238,9 @@
 
     async function deleteTask(id) {
       try {
-        await fetch(`${API}/tasks/${id}`, {
+        await fetch(API + '/tasks/' + id, {
           method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': 'Bearer ' + token }
         });
         getTasks();
       } catch (error) {
@@ -282,11 +252,11 @@
       const el = document.getElementById('statusMsg');
       el.textContent = msg;
       el.style.color = color;
-      setTimeout(() => el.textContent = '', 2000);
+      setTimeout(function() { el.textContent = ''; }, 2000);
     }
 
     function showAuthMsg(msg, color) {
-      const el = document.getElementById('authMsg') || document.getElementById('signupMsg');
+      const el = document.getElementById('authMsg');
       el.textContent = msg;
       el.style.color = color;
     }
