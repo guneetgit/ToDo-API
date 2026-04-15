@@ -147,6 +147,7 @@
         const data = await res.json();
 
         if (!res.ok) {
+          alert('Not authorized');
           showAuthMsg('Invalid username or password', 'red');
           return;
         }
@@ -170,6 +171,13 @@
         const res = await fetch(API + '/tasks', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
+
+        if (res.status === 401 || res.status === 403) {
+          alert('Not authorized');
+          logout();
+          return;
+        }
+
         const tasks = await res.json();
         const taskList = document.getElementById('taskList');
 

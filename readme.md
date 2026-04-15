@@ -1,18 +1,18 @@
 # To-Do API
 
-A full-stack To-Do web application built with Node.js, Express.js, MongoDB, and Keycloak authentication.
+A full-stack To-Do web application built with Node.js, Express.js, MongoDB, and secured by **Keycloak** Single Sign-On (SSO).
 
 ## Features
-- User login via Keycloak (Identity and Access Management)
-- JWT token verification on all protected routes
+- Identity and Access Management through Keycloak (SSO)
+- Protected REST API routes validating Keycloak access tokens
 - Full CRUD operations — Create, Read, Update, Delete tasks
-- Frontend connected to backend with Keycloak auth flow
+- Frontend connected to backend directly exchanging tokens
 - Passwords managed by Keycloak (not stored in app database)
 
 ## Tech Stack
 - **Backend:** Node.js, Express.js, MongoDB, Mongoose
-- **Authentication:** Keycloak (OpenID Connect), JWT
-- **Frontend:** HTML, CSS, JavaScript
+- **Authentication:** Keycloak Server (OAuth 2.0 / OpenID Connect), express-jwt
+- **Frontend:** Vanilla HTML, CSS, JavaScript
 
 ## Architecture
 User → Keycloak (login) → JWT Token → Express API → MongoDB
@@ -20,9 +20,9 @@ User → Keycloak (login) → JWT Token → Express API → MongoDB
 ## API Endpoints
 
 ### Auth
-Handled by Keycloak at `http://localhost:8080`
+Handled by Keycloak at `http://localhost:8080/realms/todo-app/...`
 
-### Tasks (Protected — requires Keycloak JWT token)
+### Tasks (Protected — requires Keycloak Bearer Token)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /tasks | Get all tasks |
@@ -35,43 +35,22 @@ Handled by Keycloak at `http://localhost:8080`
 
 ### Prerequisites
 - Node.js
-- MongoDB Atlas account
-- Keycloak 26.x running locally on port 8080
+- MongoDB Atlas account (or local MongoDB)
+- Keycloak server running locally on port 8080 (e.g., via Docker)
 
 ### Steps
 1. Clone the repository
 2. Run `npm install`
-3. Create a `.env` file:
+3. Create a `.env` file in the root directory based on the following variables:
 
-## API Endpoints
+```env
+MONGO_URI=<your_mongo_connection_string>
+PORT=3002
+KEYCLOAK_URL=http://127.0.0.1:8080
+KEYCLOAK_REALM=todo-app
+KEYCLOAK_CLIENT_ID=c1
+KEYCLOAK_CLIENT_SECRET=<your_keycloak_client_secret>
+```
 
-### Auth
-Handled by Keycloak at `http://localhost:8080`
-
-### Tasks (Protected — requires Keycloak JWT token)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /tasks | Get all tasks |
-| POST | /tasks | Create a new task |
-| GET | /tasks/:id | Get a single task |
-| PUT | /tasks/:id | Update a task |
-| DELETE | /tasks/:id | Delete a task |
-
-## Setup
-
-### Prerequisites
-- Node.js
-- MongoDB Atlas account
-- Keycloak 26.x running locally on port 8080
-
-### Steps
-1. Clone the repository
-2. Run `npm install`
-3. Create a `.env` file:
-
-MONGO_URI=your_mongodb_connection_string
-PORT=3000
-JWT_SECRET=your_jwt_secret
-KEYCLOAK_URL=http://localhost:8080
-KEYCLOAK_REALM=your_realm_name
-KEYCLOAK_CLIENT_ID=your_client_id
+4. Run `npm start` or `node server.js` to start the backend.
+5. Open `index.html` in your browser to access the frontend application.
